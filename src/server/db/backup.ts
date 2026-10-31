@@ -6,9 +6,10 @@
 // ・バックアップ先は設定で変えられる（Googleドライブの同期フォルダなども可）
 //   → 指定したフォルダに書けない時は、データフォルダの backups に作る
 
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { backup } from 'node:sqlite';
+import { removeFile } from '../core/fsutil.ts';
 import { describeError, type AreaLogger } from '../core/logger.ts';
 import { jstDayOf, jstStamp } from '../core/time.ts';
 import type { Db } from './database.ts';
@@ -27,7 +28,7 @@ export interface BackupStatus {
 /** データベースを、指定したファイルにコピーする（使用中でも安全） */
 export async function copyDatabase(db: Db, file: string): Promise<void> {
   const tmp = `${file}.tmp`;
-  rmSync(tmp, { force: true });
+  removeFile(tmp);
   await backup(db, tmp);
   renameSync(tmp, file);
 }
@@ -130,7 +131,7 @@ export class BackupManager {
       .filter((name) => DAILY_PATTERN.test(name))
       .sort();
     for (const name of daily.slice(0, Math.max(0, daily.length - keep))) {
-      rmSync(join(folder, name), { force: true });
+      removeFile(join(folder, name));
     }
   }
 
