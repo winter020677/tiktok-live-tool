@@ -1,6 +1,6 @@
 // ファイル操作の小さな道具
 
-import { closeSync, fsyncSync, mkdirSync, openSync, renameSync, rmSync, writeSync } from 'node:fs';
+import { closeSync, fsyncSync, mkdirSync, openSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /**
@@ -23,6 +23,19 @@ export function writeFileAtomic(file: string, data: string | Uint8Array): void {
 }
 
 /**
+ * ファイルを1つ消す。もともと無ければ何もしない。
+ * rmSync は使わない：Windows版のNode 24では、日本語の入った名前を rmSync で消すと
+ * エラーにならずにNodeごと落ちる（unlinkSync なら大丈夫）。
+ */
+export function removeFile(file: string): void {
+  try {
+    unlinkSync(file);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
+}
+
+/**
  * Windowsでは、ウイルス対策ソフトなどがファイルを一瞬つかんでいて
  * 入れ替えに失敗することがあるので、少し待って何度か試す。
  */
@@ -35,7 +48,7 @@ function renameWithRetry(from: string, to: string): void {
       const code = (err as NodeJS.ErrnoException).code;
       const retryable = code === 'EPERM' || code === 'EBUSY' || code === 'EACCES';
       if (!retryable || attempt >= 10) {
-        rmSync(from, { force: true });
+        removeFile(from);
         throw err;
       }
       sleepSync(50 * (attempt + 1));
