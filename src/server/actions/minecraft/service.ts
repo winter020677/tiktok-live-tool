@@ -15,6 +15,7 @@ export type MinecraftStatus =
   | { state: 'no-password'; message: string; hint: string }
   | { state: 'connecting'; message: string }
   | { state: 'connected'; message: string }
+  | { state: 'server-stopped'; message: string; hint: string }
   | { state: 'error'; message: string; hint: string; nextRetryAt: string | null };
 
 export interface CommandResult {
@@ -111,6 +112,20 @@ export class MinecraftService {
     this.clearRetry();
     this.client?.close();
     this.client = null;
+  }
+
+  /**
+   * 本体からサーバーを止めた時に呼ぶ。止めたサーバーにはつなぎ直しに行かず、エラーではなく「止めてある」と出す。
+   * 次に起動が終わった時（restart）に、またつなぐ。
+   */
+  pause(): void {
+    if (!this.getSettings().enabled) return;
+    this.stop();
+    this.setStatus({
+      state: 'server-stopped',
+      message: 'サーバーは止めてあります',
+      hint: 'サーバーを起動すると、起動が終わった時に自動でつなぎます',
+    });
   }
 
   /** コマンドを1つ、すぐに送る（順番待ちを通さない。テストボタン用） */

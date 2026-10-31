@@ -127,6 +127,8 @@ export function minecraftTone(state: AppState): { tone: Tone; label: string } {
       return { tone: 'yellow', label: 'つないでいます' };
     case 'no-password':
       return { tone: 'yellow', label: '未設定' };
+    case 'server-stopped':
+      return { tone: 'gray', label: '止めてあります' };
     case 'error':
       return { tone: 'red', label: 'エラー' };
     default:

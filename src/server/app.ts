@@ -170,6 +170,7 @@ export class App {
       isConnectedElsewhere: () => this.minecraft.getStatus().state === 'connected',
       // 起動が終わったら、RCONの再試行を待たずにすぐつなぐ
       onReady: () => this.minecraft.restart(),
+      onStopping: () => this.minecraft.pause(),
     });
     this.speech = new SpeechService({ getSettings: () => this.settings.get().voicevox, hub: this.hub, log: log('読み上げ') });
     this.rule = new RuleEngine({

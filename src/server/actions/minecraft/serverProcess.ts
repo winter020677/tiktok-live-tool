@@ -93,7 +93,7 @@ export function planPaperLaunch(settings: ServerSettings): LaunchPlan {
   }
   const memory = `${settings.memoryGb}G`;
   return {
-    command: settings.javaPath.trim() || 'java',
+    command: chooseJava(folder, settings.javaPath),
     args: [
       `-Xms${memory}`,
       `-Xmx${memory}`,
@@ -106,6 +106,29 @@ export function planPaperLaunch(settings: ServerSettings): LaunchPlan {
     ],
     cwd: folder,
   };
+}
+
+/**
+ * 使う java を決める。
+ * 「Javaの場所」が空か java の時は、サーバーのフォルダに同梱のJDK（STEのサーバーなら jdk-21.0.7-lite など）があればそれを使う。
+ * サーバーの版に合うJavaが同梱されているので、PCに入っているJavaの版に左右されない。
+ * 同梱のJDKが複数ある時は、名前が新しい順で最初のもの。
+ */
+export function chooseJava(folder: string, javaPath: string): string {
+  const configured = javaPath.trim();
+  if (configured !== '' && configured.toLowerCase() !== 'java') return configured;
+  const exe = process.platform === 'win32' ? 'java.exe' : 'java';
+  try {
+    const bundled = readdirSync(folder)
+      .filter((name) => /^(jdk|jre)/i.test(name))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+      .map((name) => join(folder, name, 'bin', exe))
+      .find((file) => existsSync(file));
+    if (bundled) return bundled;
+  } catch {
+    // フォルダが読めない時は、PCのJavaを使う
+  }
+  return 'java';
 }
 
 /** server.properties と同じフォルダの eula.txt で、EULA（利用規約）に同意済みか */
@@ -123,6 +146,7 @@ export class MinecraftServerProcess {
   private readonly plan: (settings: ServerSettings) => LaunchPlan;
   private readonly isConnectedElsewhere: () => boolean;
   private readonly onReady: () => void;
+  private readonly onStopping: () => void;
   private child: ChildProcess | null = null;
   private status: ServerStatus;
   private stopRequested = false;
@@ -139,6 +163,8 @@ export class MinecraftServerProcess {
     isConnectedElsewhere?: () => boolean;
     /** 起動が終わった時に呼ぶ（RCONのつなぎ直し） */
     onReady?: () => void;
+    /** 停止・強制終了を始めた時に呼ぶ（止めたサーバーにRCONでつなぎ直しに行かないように） */
+    onStopping?: () => void;
     /** テスト用：起動のしかたを差し替える */
     plan?: (settings: ServerSettings) => LaunchPlan;
   }) {
@@ -147,6 +173,7 @@ export class MinecraftServerProcess {
     this.plan = options.plan ?? planPaperLaunch;
     this.isConnectedElsewhere = options.isConnectedElsewhere ?? (() => false);
     this.onReady = options.onReady ?? (() => {});
+    this.onStopping = options.onStopping ?? (() => {});
     this.status = this.stoppedStatus('止まっています', null);
   }
 
@@ -254,6 +281,7 @@ export class MinecraftServerProcess {
     const exited = this.waitForExit();
     if (!this.stopRequested) {
       this.stopRequested = true;
+      this.onStopping();
       this.setStatus({ ...this.status, state: 'stopping', message: '止めています（ワールドを保存しています）…', hint: null });
       this.addLine('in', 'stop');
       child.stdin?.write('stop\n');
@@ -276,6 +304,7 @@ export class MinecraftServerProcess {
     const child = this.child;
     if (!child) return;
     const exited = this.waitForExit();
+    if (!this.stopRequested) this.onStopping();
     this.stopRequested = true;
     this.addLine('info', '強制終了します');
     child.kill();

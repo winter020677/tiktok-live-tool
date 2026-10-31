@@ -112,7 +112,7 @@ export function SettingsPage({ state }: { state: AppState }) {
             <NumberInput value={draft.minecraft.memoryGb} min={1} max={64} onChange={(v) => set('minecraft', 'memoryGb', v)} />
           </Field>
         </div>
-        <Field label="Javaの場所" hint="ふつうは java のまま。Javaが見つからないと言われたら、java.exe の場所を入力します">
+        <Field label="Javaの場所" hint="ふつうは java のまま（サーバーのフォルダに jdk… のフォルダがあればそのJavaを、なければPCのJavaを使います）。Javaが見つからないと言われたら、java.exe の場所を入力します">
           <input
             value={draft.minecraft.javaPath}
             onChange={(e) => set('minecraft', 'javaPath', e.target.value)}

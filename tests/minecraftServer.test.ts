@@ -58,7 +58,7 @@ afterEach(async () => {
   running = [];
 });
 
-function create(body: string, options: { connected?: boolean; onReady?: () => void } = {}) {
+function create(body: string, options: { connected?: boolean; onReady?: () => void; onStopping?: () => void } = {}) {
   const file = script(body);
   const plan = (): LaunchPlan => ({ command: process.execPath, args: [file], cwd: tmpdir() });
   const server = new MinecraftServerProcess({
@@ -67,6 +67,7 @@ function create(body: string, options: { connected?: boolean; onReady?: () => vo
     plan,
     isConnectedElsewhere: () => options.connected ?? false,
     onReady: options.onReady,
+    onStopping: options.onStopping,
   });
   running.push(server);
   return server;
@@ -95,10 +96,13 @@ describe('Minecraftサーバーの起動と停止', () => {
   });
 
   it('停止は stop を送って、止まり終わるまで待つ', async () => {
-    const server = create(FAKE_PAPER);
+    let stopping = 0;
+    const server = create(FAKE_PAPER, { onStopping: () => (stopping += 1) });
     server.start();
     await waitFor(() => server.getStatus().state === 'running');
     await server.stop();
+    // 止め始めた時に1回だけ知らせる（RCONを「止めてあります」にするため）
+    expect(stopping).toBe(1);
     expect(server.isRunning()).toBe(false);
     expect(server.getStatus()).toMatchObject({ state: 'stopped', hint: null });
     expect(server.consoleLines().some((l) => l.text.includes('Saving worlds'))).toBe(true);
@@ -178,6 +182,20 @@ describe('起動のしかた（planPaperLaunch）', () => {
     expect(planPaperLaunch(settings({ serverFolder: folderWith('paper-1.21.4-100.jar', 'other.jar') })).args).toContain('paper-1.21.4-100.jar');
     expect(() => planPaperLaunch(settings({ serverFolder: folderWith('a.jar', 'b.jar') }))).toThrow('複数');
     expect(() => planPaperLaunch(settings({ serverFolder: folderWith() }))).toThrow('jar ファイルがありません');
+  });
+
+  it('Javaの場所が java のままなら、フォルダに同梱のJDK（新しい版）を使う', () => {
+    const dir = folderWith('paper-1.21-130.jar');
+    const exe = process.platform === 'win32' ? 'java.exe' : 'java';
+    for (const jdk of ['jdk-21.0.7-lite', 'jdk-25.0.3-lite']) {
+      mkdirSync(join(dir, jdk, 'bin'), { recursive: true });
+      writeFileSync(join(dir, jdk, 'bin', exe), '');
+    }
+    mkdirSync(join(dir, 'jdk-99-empty'));
+    expect(planPaperLaunch(settings({ serverFolder: dir })).command).toBe(join(dir, 'jdk-25.0.3-lite', 'bin', exe));
+    expect(planPaperLaunch(settings({ serverFolder: dir, javaPath: '' })).command).toBe(join(dir, 'jdk-25.0.3-lite', 'bin', exe));
+    // 場所を指定した時は、そちらを使う
+    expect(planPaperLaunch(settings({ serverFolder: dir, javaPath: 'C:\\Java\\bin\\java.exe' })).command).toBe('C:\\Java\\bin\\java.exe');
   });
 
   it('jar の名前とJavaの場所を指定できる（フォルダの外は指せない）', () => {
