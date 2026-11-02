@@ -133,6 +133,22 @@ describe('Minecraftの接続管理', () => {
     mc.stop();
   });
 
+  it('本体からサーバーを止めた時は「止めてあります」にして、つなぎ直しに行かない', async () => {
+    const fake = await fakeMinecraft();
+    servers.push(fake);
+    const mc = service(fake.port);
+    mc.restart();
+    await waitFor(() => mc.getStatus().state === 'connected');
+    mc.pause();
+    for (const s of fake.sockets) s.destroy();
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(mc.getStatus().state).toBe('server-stopped');
+    // 起動が終わったら（restart）、またつなぐ
+    mc.restart();
+    await waitFor(() => mc.getStatus().state === 'connected');
+    mc.stop();
+  });
+
   it('つながっていない時のコマンドは、分かりやすいエラーになる', async () => {
     const mc = service(1);
     await expect(mc.execute('say x')).rejects.toThrow(/サーバーが起動しているか/);
