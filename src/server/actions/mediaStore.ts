@@ -7,8 +7,9 @@
 // ・一覧はフォルダを読むだけで作る。別の索引ファイルを持たないので、
 //   利用者が直接ファイルを入れたり消したりしても食い違わない。
 
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
+import { removeFile } from '../core/fsutil.ts';
 
 /** 出せるファイルの種類（要件 A-1：動画・透過webm・GIF・画像・効果音） */
 export const MEDIA_KINDS = ['video', 'image', 'audio'] as const;
@@ -138,7 +139,7 @@ export class MediaStore {
   /** ファイルを消す。消せたら true */
   remove(name: string): boolean {
     if (!this.has(name)) return false;
-    rmSync(join(this.dir, name));
+    removeFile(join(this.dir, name));
     return true;
   }
 
